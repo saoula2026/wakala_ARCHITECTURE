@@ -1,0 +1,67 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Pillar 2: Hexagonal Payment & Quarantine State Machine (ADR-011)",
+    "output": "diagram-2-payment-quarantine.html",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase"
+  },
+  "mainPath": ["hold", "payment", "webhook", "eval", "confirmed", "voucher"],
+  "states": [
+    { "id": "hold", "type": "start", "label": "Seat Hold", "sublabel": "900s Redis TTL", "tag": "TTL 15m", "step": "01" },
+    { "id": "payment", "type": "active", "label": "Payment Ingress", "sublabel": "CIB / Edahabia / CCP", "tag": "pending", "step": "02" },
+    { "id": "webhook", "type": "active", "label": "HMAC Ingress", "sublabel": "Signed Payload", "tag": "crypto", "step": "03" },
+    { "id": "eval", "type": "decision", "label": "Policy Gate", "sublabel": "Amount & Status", "tag": "check", "step": "04" },
+    { "id": "confirmed", "type": "success", "label": "Confirmed", "sublabel": "Seats Committed", "tag": "booked", "step": "05" },
+    { "id": "voucher", "type": "success", "label": "PNR Issued", "sublabel": "MCTA Voucher", "tag": "ready", "step": "06" },
+    { "id": "quarantine", "type": "waiting", "label": "Quarantine (ADR-011)", "sublabel": "Requires Review", "tag": "isolated" },
+    { "id": "resolution", "type": "active", "label": "Staff Ledger Tool", "sublabel": "Audit Balance", "tag": "internal" },
+    { "id": "refunded", "type": "neutral", "label": "MCTA Refund", "sublabel": "Statutory Tiers", "tag": "terminal" },
+    { "id": "expired", "type": "failure", "label": "Hold Expired", "sublabel": "TTL Released", "tag": "timeout" }
+  ],
+  "transitions": [
+    { "id": "t1", "from": "hold", "to": "payment", "label": "checkout" },
+    { "id": "t2", "from": "payment", "to": "webhook", "label": "callback" },
+    { "id": "t3", "from": "webhook", "to": "eval", "label": "verify" },
+    { "id": "t4", "from": "eval", "to": "confirmed", "label": "valid", "variant": "emphasis" },
+    { "id": "t5", "from": "confirmed", "to": "voucher", "label": "emit" },
+    { "id": "t6", "from": "eval", "to": "quarantine", "label": "mismatch / late (ADR-011)", "variant": "security" },
+    { "id": "t7", "from": "quarantine", "to": "resolution", "label": "triage" },
+    { "id": "t8", "from": "resolution", "to": "confirmed", "label": "reconciled", "variant": "emphasis" },
+    { "id": "t9", "from": "resolution", "to": "refunded", "label": "settled", "variant": "dashed" },
+    { "id": "t10", "from": "confirmed", "to": "refunded", "label": "cancel", "variant": "dashed" },
+    { "id": "t11", "from": "hold", "to": "expired", "label": "timeout", "variant": "security" }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "ADR-011 Quarantine Policy",
+      "items": [
+        "Webhooks with amount/currency mismatches or arriving after hold expiry are quarantined in requires_review",
+        "Prevents catastrophic rollback data loss while customer funds remain captured at the banking switch",
+        "Role-Gated discrepancy resolution endpoint allows accounting staff to clear edge cases safely"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "MCTA Statutory Cancellation Tiers",
+      "items": [
+        "> 15 days departure: 100% full refund",
+        "7 to 15 days departure: 50% partial refund",
+        "< 7 days departure: 0% non-refundable (legal forfeiture)",
+        "Automated simulation modal displays exact DZD penalty before traveler commits"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Algerian Multi-Canal Support",
+      "items": [
+        "Official SATIM CIB & Edahabia instant clearing (Chargily Pay V2 HMAC)",
+        "Algérie Poste BaridiMob & CCP postal slip upload with 24-hour hold protection",
+        "Counter cash deposit at physical agency branches with 24-hour PNR lock"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Pillar 1: High-Concurrency Inventory & Global Lock Topology",
+    "output": "diagram-1-inventory-locks.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "checkouts", "type": "external", "label": "5,000 Flash Checkouts", "sublabel": "Concurrent Passenger Requests", "pos": [40, 200], "size": [160, 64], "tag": "5,000 req/sec" },
+    { "id": "edge_proxy", "type": "cloud", "label": "Next.js Edge Proxy", "sublabel": "Same-Origin Ingress Route", "pos": [260, 200], "size": [160, 64], "tag": "< 15ms TTFB" },
+    { "id": "redis_lua", "type": "security", "label": "Redis Atomic Lua Gate", "sublabel": "HOLD_LUA with 900s TTL", "pos": [480, 200], "size": [170, 64], "tag": "< 1.2ms Exec" },
+    { "id": "mysql_tx", "type": "database", "label": "MySQL 8 InnoDB Engine", "sublabel": "ACID Transaction Scope", "pos": [710, 200], "size": [170, 64], "tag": "Strict Serial" },
+    { "id": "lock_pdate", "type": "database", "label": "1. PackageDate Lock", "sublabel": "SELECT ... FOR UPDATE", "pos": [940, 100], "size": [160, 56], "tag": "Root Mutex" },
+    { "id": "lock_booking", "type": "database", "label": "2. Booking Record", "sublabel": "Hold-State Tracking Row", "pos": [940, 200], "size": [160, 56], "tag": "Child Entity" },
+    { "id": "lock_payment", "type": "database", "label": "3. Payment Audit Log", "sublabel": "Ledger Settlement Row", "pos": [940, 300], "size": [160, 56], "tag": "Leaf Record" },
+    { "id": "invariant_box", "type": "backend", "label": "Seat Invariant Engine", "sublabel": "Deterministic Accounting", "pos": [480, 340], "size": [170, 64], "tag": "Zero-Oversell" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Sub-Millisecond Seat Reservation Core", "wraps": ["redis_lua", "mysql_tx", "lock_pdate", "lock_booking", "lock_payment", "invariant_box"] },
+    { "kind": "security-group", "label": "Unified Global Lock Ordering (Deadlock-Free)", "wraps": ["lock_pdate", "lock_booking", "lock_payment"] }
+  ],
+  "connections": [
+    { "id": "c1", "from": "checkouts", "to": "edge_proxy", "label": "POST /api/bookings/hold", "variant": "emphasis" },
+    { "id": "c2", "from": "edge_proxy", "to": "redis_lua", "label": "Redis::eval(HOLD_LUA)", "variant": "security" },
+    { "id": "c3", "from": "redis_lua", "to": "mysql_tx", "label": "Hold Verified (0ms contention)", "variant": "emphasis" },
+    { "id": "c4", "from": "mysql_tx", "to": "lock_pdate", "label": "Step 1: Acquire Root" },
+    { "id": "c5", "from": "lock_pdate", "to": "lock_booking", "label": "Step 2: Mutate State" },
+    { "id": "c6", "from": "lock_booking", "to": "lock_payment", "label": "Step 3: Append Ledger" },
+    { "id": "c7", "from": "redis_lua", "to": "invariant_box", "label": "Enforce Invariant", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Mathematical Accounting Invariant", "items": ["Available Seats = Total Capacity − ∑(Held Bookings) − ∑(Active Unbooked Redis Holds)", "Guarantees zero negative inventory and zero double-booking even under peak spikes"] },
+    { "dot": "emerald", "title": "In-Memory Atomic Gate", "items": ["Redis Lua executes atomically in < 1.2ms without database connection exhaustion", "Seat hold expires automatically after 900 seconds (15 min TTL) if unpaid"] },
+    { "dot": "rose", "title": "Unified Global Lock Ordering", "items": ["Strict parent-to-child sequence (PackageDate ➔ Booking ➔ Payment)", "Eliminates InnoDB deadlocks across concurrent multi-tenant bookings"] }
+  ]
+}

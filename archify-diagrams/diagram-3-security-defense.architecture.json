@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Pillar 3: Zero-Trust Security & Anti-IDOR Defense-in-Depth Matrix",
+    "output": "diagram-3-security-defense.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "edge", "type": "security", "label": "Edge Cookie Isolation", "sublabel": "SameSite=Lax & HttpOnly", "pos": [40, 200], "size": [160, 64], "tag": "Anti-CSRF" },
+    { "id": "lockout", "type": "security", "label": "Account-Bound Lockout", "sublabel": "SHA-1 Key & Dual Channel", "pos": [260, 200], "size": [160, 64], "tag": "Rate-Limited" },
+    { "id": "magic_byte", "type": "backend", "label": "MIME Magic-Byte Engine", "sublabel": "finfo & Polyglot Rejection", "pos": [480, 200], "size": [160, 64], "tag": "8-Payload Reject" },
+    { "id": "boot_guard", "type": "cloud", "label": "Fail-Closed Boot Guard", "sublabel": "Strict Secret Enforcement", "pos": [480, 340], "size": [160, 64], "tag": "Zero Fallback" },
+    { "id": "voucher_pii", "type": "security", "label": "Law 18-07 PII Masking", "sublabel": "AES-256-CBC at Rest", "pos": [720, 160], "size": [170, 64], "tag": "Masked NIN" },
+    { "id": "non_public_disk", "type": "database", "label": "Isolated Disk Storage", "sublabel": "Non-Public Storage Disk", "pos": [720, 260], "size": [170, 64], "tag": "No Web Access" },
+    { "id": "auditor", "type": "external", "label": "Role-Gated Auditor", "sublabel": "Role & Policy Gate", "pos": [720, 360], "size": [170, 64], "tag": "Anti-IDOR" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Comprehensive Defense-in-Depth Perimeter", "wraps": ["edge", "lockout", "magic_byte", "boot_guard", "voucher_pii", "non_public_disk", "auditor"] },
+    { "kind": "security-group", "label": "Law 18-07 Privacy & Receipt Isolation", "wraps": ["voucher_pii", "non_public_disk", "auditor"] }
+  ],
+  "connections": [
+    { "id": "s1", "from": "edge", "to": "lockout", "label": "Sanctum Session Ingress", "variant": "emphasis" },
+    { "id": "s2", "from": "lockout", "to": "magic_byte", "label": "Staff / Client Handshake", "variant": "security" },
+    { "id": "s3", "from": "magic_byte", "to": "non_public_disk", "label": "Store Validated Slip", "variant": "emphasis" },
+    { "id": "s4", "from": "magic_byte", "to": "voucher_pii", "label": "Register Masked PII" },
+    { "id": "s5", "from": "boot_guard", "to": "magic_byte", "label": "Key Entropy Check", "variant": "dashed" },
+    { "id": "s6", "from": "non_public_disk", "to": "auditor", "label": "Role-Gated Slip Inspection" }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "MIME Magic-Byte Rejection Matrix",
+      "items": [
+        "finfo inspection blocks PHP web shells disguised as JPG/PNG",
+        "Rejects double extensions (.php.png), SVG XML script bombs, and null-byte bypasses",
+        "Files stored on isolated non-public storage disk outside web document root"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Law 18-07 Data Protection",
+      "items": [
+        "Passenger NIN and Passport numbers encrypted with AES-256-CBC at rest",
+        "Official downloadable vouchers display only masked identifiers (e.g., 100****42)",
+        "Receipt streaming protected by Role-Gated policies, preventing IDOR enumeration"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Fail-Closed Production Safety",
+      "items": [
+        "Production boot aborts if default keys or weak entropy are detected",
+        "Account-Bound SHA-1 Lockout Key mitigates brute force with isolated recovery channel",
+        "Zero-401 console noise with public-safe auth handshake"
+      ]
+    }
+  ]
+}
